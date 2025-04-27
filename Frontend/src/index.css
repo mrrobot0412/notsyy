@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'highlight.js/styles/atom-one-dark.css';
+
+@import 'prismjs/themes/prism-tomorrow.css';
+
+/* Add to your index.css */
+.hljs {
+  color: #abb2bf;
+  background: #1e1e1e;
+}
+
+.hljs-keyword {
+  color: #c678dd;
+}
+
+.hljs-string {
+  color: #98c379;
+}
+
+.hljs-number {
+  color: #d19a66;
+}
+
+.hljs-function {
+  color: #61afef;
+}
+
+.hljs-comment {
+  color: #5c6370;
+  font-style: italic;
+}
+
+.hljs-class {
+  color: #e5c07b;
+}
+
+.hljs-variable {
+  color: #e06c75;
+}
+
+/* Custom syntax highlighting colors */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #7C7C7C;
+}
+
+.token.punctuation {
+  color: #c5c8c6;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+  color: #7D4FFF;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin {
+  color: #78E9D2;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string,
+.token.variable {
+  color: #FF4F5B;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #7D4FFF;
+}
+
+.token.function {
+  color: #78E9D2;
+}
+
+.token.regex,
+.token.important {
+  color: #FF4F5B;
+}
+
+@layer base {
+  html {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0px;
+    height: 0px;
+    background: transparent;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  .snap-x {
+    scroll-snap-type: x mandatory;
+  }
+
+  .snap-start {
+    scroll-snap-align: start;
+  }
+
+  .carousel-container {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .carousel-item {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 1024px) {
+    .w-\[800px\] {
+      width: 600px;
+    }
+    .h-\[800px\] {
+      height: 600px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .w-\[800px\] {
+      width: 400px;
+    }
+    .h-\[800px\] {
+      height: 400px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .w-\[800px\] {
+      width: 300px;
+    }
+    .h-\[800px\] {
+      height: 300px;
+    }
+  }
+}

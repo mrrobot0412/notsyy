@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.16",
+    "framer-motion": "^12.9.2",
+    "highlight.js": "^11.11.1",
+    "prism-react-renderer": "^2.4.1",
+    "prismjs": "^1.30.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^15.6.1",
+    "remark-gfm": "^4.0.1"
+  }
+}
