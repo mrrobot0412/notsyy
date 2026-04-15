@@ -37,7 +37,7 @@ const upload=(destination)=>multer({
     }   
 }).fields([
     {name:'coverImage',maxCount:1},
-    {name:'pdf',maxCount:3}
+    {name:'pdf',maxCount:5}
 ])
 
 module.exports=upload;

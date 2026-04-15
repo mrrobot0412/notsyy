@@ -26,7 +26,7 @@ app.use('/notsy/auth', require('./routes/auth'));
 app.use('/notsy', authenticateUser, require('./routes/index'));
 
 // Listen function & connect to database
-const port = 3000;
+const port = Number(process.env.PORT || 3001);
 const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);

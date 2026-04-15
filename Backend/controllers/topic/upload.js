@@ -154,8 +154,12 @@ const uploadPdfs = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in uploadPdfs:', error);
+        const upstreamError =
+            error.response?.data?.error ||
+            error.response?.data?.msg ||
+            error.message;
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            msg: 'Internal server error',
+            msg: upstreamError || 'Internal server error',
             error: error.message
         });
     }

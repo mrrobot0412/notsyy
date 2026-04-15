@@ -15,8 +15,15 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-OPENAI_DF = pd.read_csv(os.path.join(BASE_DIR, 'openai_docs_chunked.csv'))
-GFG_DF = pd.read_csv(os.path.join(BASE_DIR, 'gfg_cleaned.csv'))
+def load_optional_csv(filename, columns):
+    filepath = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(filepath):
+        return pd.DataFrame(columns=columns)
+    return pd.read_csv(filepath)
+
+
+OPENAI_DF = load_optional_csv('openai_docs_chunked.csv', ['id', 'text'])
+GFG_DF = load_optional_csv('gfg_cleaned.csv', ['url', 'text'])
 
 def initialize_openai_client():
     key = os.getenv('OPENAI_API_KEY')

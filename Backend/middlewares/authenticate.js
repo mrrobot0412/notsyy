@@ -9,7 +9,8 @@ const auth=async(req,res,next)=>{
     const token=authHeader.split(' ')[1]
 
     try {
-        const payload=jwt.verify(token,process.env.jwt_secret)
+        const jwtSecret = process.env.JWT_SECRET || process.env.jwt_secret
+        const payload=jwt.verify(token,jwtSecret)
         //adding user info in the routes....if valid
         req.user = { userId: payload.userId, name: payload.name }
         next()
