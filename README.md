@@ -16,7 +16,7 @@ This repository is a local multi-service study assistant platform with three mai
 
 ## High-Level Architecture
 
-- The frontend talks to the backend at `http://localhost:3000/notsy`.
+- The frontend talks to the backend at `http://localhost:3001/notsy` by default.
 - The backend serves uploads from `/uploads`, authenticates users with JWT, stores application data in MongoDB, and proxies AI-heavy work to Django.
 - The Django service listens on `http://127.0.0.1:8000` and is called by the backend for:
   - chat replies
@@ -24,7 +24,7 @@ This repository is a local multi-service study assistant platform with three mai
   - notes generation
   - flashcard generation
   - graph-related AI endpoints
-- Django AI utilities depend on OpenAI and Pinecone, and also expect local CSV knowledge-base files inside `notsy/ai/`.
+- On the `gemini-migration` branch, Django AI utilities depend on Gemini and Pinecone, and also expect local CSV knowledge-base files inside `notsy/ai/`.
 
 ## Main Product Flows
 
@@ -37,8 +37,8 @@ This repository is a local multi-service study assistant platform with three mai
 
 ## Important Runtime Details
 
-- Frontend base API URL is hardcoded in [Frontend/src/utils/axios.js](/Users/amankapoor/notsyy/Frontend/src/utils/axios.js:1) as `http://localhost:3000/notsy`.
-- Backend port is hardcoded in [Backend/app.js](/Users/amankapoor/notsyy/Backend/app.js:1) as `3000`.
+- Frontend base API URL defaults in [Frontend/src/utils/axios.js](/Users/amankapoor/notsyy/Frontend/src/utils/axios.js:1) to `http://localhost:3001/notsy`, and can be overridden with `VITE_API_BASE_URL`.
+- Backend port defaults in [Backend/app.js](/Users/amankapoor/notsyy/Backend/app.js:1) to `3001`, and can be overridden with `PORT`.
 - Backend CORS only allows `http://localhost:5173`.
 - Backend expects MongoDB via `MONGO_URI`.
 - JWT env naming is inconsistent:
@@ -96,8 +96,8 @@ This repository is a local multi-service study assistant platform with three mai
   - `/quiz/`
   - `/graph/`
   - `/add_node/`
-- `ai/utils.py` centralizes OpenAI calls, Pinecone queries, PDF parsing, embeddings, and chunking.
-- This service is the most operationally sensitive part of the stack because it depends on OpenAI, Pinecone, Redis, and missing CSV assets.
+- On the `gemini-migration` branch, `ai/utils.py` centralizes Gemini calls, Pinecone queries, PDF parsing, embeddings, and chunking.
+- This service is the most operationally sensitive part of the stack because it depends on Gemini, Pinecone, Redis, and missing CSV assets.
 
 ## Prerequisites
 
@@ -106,7 +106,7 @@ This repository is a local multi-service study assistant platform with three mai
 - Python 3.11+ recommended
 - MongoDB running locally or remotely
 - Redis on `127.0.0.1:6379`
-- OpenAI credentials
+- Gemini API key
 - Pinecone credentials
 
 ## Suggested Environment Files
@@ -118,18 +118,15 @@ MONGO_URI=mongodb://127.0.0.1:27017/notsy
 JWT_SECRET=replace-me
 jwt_secret=replace-me
 JWT_LIFETIME=7d
-OPENAI_API_KEY=replace-me
-OPENAI_ORG_ID=
-OPENAI_PROJECT_ID=
 NODE_ENV=development
 ```
 
 ### `notsy/.env`
 
 ```env
-OPENAI_API_KEY=replace-me
-OPENAI_ORG_KEY=
-OPENAI_PROJECT_ID=
+GEMINI_API_KEY=replace-me
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_EMBED_MODEL=gemini-embedding-001
 PINE_API_KEY=replace-me
 PINE_HOST=replace-me
 ```
@@ -171,7 +168,7 @@ Frontend should then be available at `http://localhost:5173`.
 
 - The Django service will fail on import unless the missing CSV files are restored or the code is changed to handle their absence.
 - The backend will fail if `MONGO_URI` is missing or MongoDB is unreachable.
-- AI-assisted features will fail unless OpenAI and Pinecone env vars are valid.
+- On the `gemini-migration` branch, AI-assisted features will fail unless Gemini and Pinecone env vars are valid.
 - Some backend auth flows can fail if `JWT_SECRET` and `jwt_secret` are not aligned.
 - Redis is configured in Django and may be required depending on code paths and installed middleware behavior.
 

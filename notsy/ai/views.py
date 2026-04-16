@@ -4,8 +4,6 @@ from rest_framework import status
 from . import utils
 import json
 
-# client = utils.initialize_openai_client()
-
 # Create your views here.
 
 class helloWorldView(APIView):
@@ -42,7 +40,7 @@ class respond(APIView):
         try:
             response = utils.get_response(context)
         except Exception as e:
-            return Response({"error": f'Unable to get response from open-ai,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f'Unable to get response from Gemini,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({"message": response.output_text}, status=status.HTTP_200_OK)
 
 class augmentedRespond(APIView):
@@ -125,7 +123,7 @@ class augmentedRespond(APIView):
         try:
             response = utils.get_response(context, max_tokens=max_tokens, temp=temprature)
         except Exception as e:
-            return Response({"error": f"Failed to get LLM response. Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"Failed to get Gemini response. Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             "message": response.output_text,
@@ -337,13 +335,29 @@ class grapher(APIView):
         #     16: "Divide and Conquer",17: "Trie",18: "Segment Trees",19: "AVL Trees",20: "Red-Black Trees",21: "B-Trees",
         #     22: "NP-Completeness",23: "Sliding Window Technique",24: "Two Pointers Technique"
         #     }
-        client = utils.initialize_openai_client()
         message = f"topics = {str(topics)}"
+        schema = {
+            "type": "object",
+            "properties": {
+                str(k): {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "reason": {"type": "string"}
+                        },
+                        "required": ["target", "reason"],
+                        "additionalProperties": False
+                    }
+                } for k in topics.keys()
+            },
+            "required": list(map(str, topics.keys())),
+            "additionalProperties": False
+        }
         try:
-            response = client.responses.create(
-                model="gpt-4o",
-                temperature=0.0,
-                input=[
+            response = utils.generate_json(
+                [
                     {
                         "role": "system",
                         "content": (
@@ -355,36 +369,12 @@ class grapher(APIView):
                     },
                     {"role": "user", "content": message}
                 ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "labeled_notes_graph",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                str(k): {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "target": {"type": "string"},
-                                            "reason": {"type": "string"}
-                                        },
-                                        "required": ["target", "reason"],
-                                        "additionalProperties": False
-                                    }
-                                } for k in topics.keys()
-                            },
-                            "required": list(map(str, topics.keys())),
-                            "additionalProperties": False
-                        },
-                        "strict": True
-                    }
-                }
+                schema=schema,
+                temperature=0.0,
             )
         except Exception as e:
             return Response({"error": f'Failed to get response,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(json.loads(response.output_text), status=status.HTTP_200_OK)
+        return Response(response, status=status.HTTP_200_OK)
 
 class addNode(APIView):
     def post(self, request):
@@ -401,8 +391,7 @@ class addNode(APIView):
         if node_id is None or label is None:
             return Response({"error": "Invalid newNode format"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Format prompt for GPT
-        client = utils.initialize_openai_client()
+        # Format prompt for Gemini
         prompt = (
             f"You are expanding a topic graph. A new topic '{label}' (ID: {node_id}) has been added.\n"
             f"Here are the existing topics:\n"
@@ -410,46 +399,34 @@ class addNode(APIView):
             f"{json.dumps(old_graph, indent=4)}\nold graph for reference\n"
             f"Based on their meanings, return a list of nodes this new topic is connected to, along with a short explanation `reason` (1-5 words) for the connection."
         )
-
-        try:
-            response = client.responses.create(
-                model="gpt-4o",
-                temperature=0.0,
-                input=prompt,
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "labeled_notes_graph",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                str(node_id): {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "target": {"type": "string"},
-                                            "reason": {"type": "string"}
-                                        },
-                                        "required": ["target", "reason"],
-                                        "additionalProperties": False
-                                    }
-                                }
-                            },
-                            "required": [str(node_id)],
-                            "additionalProperties": False
+        schema = {
+            "type": "object",
+            "properties": {
+                str(node_id): {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "reason": {"type": "string"}
                         },
-                        "strict": True
+                        "required": ["target", "reason"],
+                        "additionalProperties": False
                     }
                 }
+            },
+            "required": [str(node_id)],
+            "additionalProperties": False
+        }
+
+        try:
+            edges = utils.generate_json(
+                prompt,
+                schema=schema,
+                temperature=0.0,
             )
         except Exception as e:
             return Response({"error": f"Failed to get response,\nError: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        try:
-            edges = json.loads(response.output_text)
-        except Exception as e:
-            return Response({"error": f"Error parsing GPT response: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         node_id_str = str(node_id)
         if node_id_str not in old_graph:
