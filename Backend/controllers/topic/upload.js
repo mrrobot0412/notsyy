@@ -7,6 +7,8 @@ const path = require('path');
 const axios = require('axios');
 const FormData = require('form-data');
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+
 const uploadUrls = async (req, res) => {
     try {
         const urls = req.body.urls;
@@ -60,7 +62,7 @@ const uploadUrls = async (req, res) => {
             topicId,
             userId
         });
-        const response=await axios.post('http://127.0.0.1:8000/upload/',{
+        const response=await axios.post(`${AI_SERVICE_URL}/upload/`,{
             type: 'video',
             source: aggregatedUrls,
             content: aggregatedTranscripts,
@@ -130,7 +132,7 @@ const uploadPdfs = async (req, res) => {
         formData.append('userId', userId);
         formData.append('type', 'pdf');
 
-        const apiResponse = await axios.post('http://127.0.0.1:8000/upload/', formData, {
+        const apiResponse = await axios.post(`${AI_SERVICE_URL}/upload/`, formData, {
             headers: formData.getHeaders()
         });
 

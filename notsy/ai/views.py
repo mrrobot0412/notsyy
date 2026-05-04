@@ -4,8 +4,6 @@ from rest_framework import status
 from . import utils
 import json
 
-# client = utils.initialize_openai_client()
-
 # Create your views here.
 
 class helloWorldView(APIView):
@@ -13,6 +11,11 @@ class helloWorldView(APIView):
         return Response({"message": "Hello, Got it!"}, status=status.HTTP_200_OK)
     def post(self, request):
         return Response({"message": "Hello, Posted"}, status=status.HTTP_200_OK)
+
+
+class healthView(APIView):
+    def get(self, request):
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
     
 class respond(APIView):
     # Get from students RAG, Normal Response nothing else
@@ -42,7 +45,7 @@ class respond(APIView):
         try:
             response = utils.get_response(context)
         except Exception as e:
-            return Response({"error": f'Unable to get response from open-ai,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f'Unable to get response from Gemini,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({"message": response.output_text}, status=status.HTTP_200_OK)
 
 class augmentedRespond(APIView):
@@ -92,11 +95,12 @@ class augmentedRespond(APIView):
             context.append(messages_trunc[i])
             context.append(messages_trunc[i+1])
 
-        metadata = {}
+        metadata = {"sources": []}
         try:
             # Query RAG
             rag_results = utils.moded_query(user_query, mode=mode_id, user_id=user_id, topic_id=topic_id)
-            context += rag_results
+            context += rag_results["context"]
+            metadata["sources"] = rag_results["sources"]
         except Exception as e:
             print(f"RAG retrieval failed: {str(e)}")
         
@@ -125,11 +129,11 @@ class augmentedRespond(APIView):
         try:
             response = utils.get_response(context, max_tokens=max_tokens, temp=temprature)
         except Exception as e:
-            return Response({"error": f"Failed to get LLM response. Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"Failed to get Gemini response. Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             "message": response.output_text,
-            "metadata": metadata,  # First matched metadata; optional to return more
+            "metadata": metadata,
             "modeId": mode_id
         }, status=status.HTTP_200_OK)
 
@@ -155,9 +159,13 @@ class makeNotes(APIView):
         for i in range(0, len(messages_trunc) - 1, 2):
             context.append(messages_trunc[i])
             context.append(messages_trunc[i + 1])
-        mini_rag_results = utils.query("Key academic concepts", user_id, 5)
-        filtered_rag = [doc for doc in mini_rag_results if doc.get("metadata", {}).get("topic_id") == topic_id]
-        for j, doc in enumerate(filtered_rag):
+        mini_rag_results = utils.query(
+            "Key academic concepts",
+            user_id,
+            8,
+            filter_metadata={"topic_id": {"$eq": topic_id}},
+        )
+        for j, doc in enumerate(mini_rag_results):
             content = doc.get("content", "")
             context.append({"role": "system", "content": f"[RAG #{j+1}] {content}"})
 
@@ -191,9 +199,13 @@ class makeFlashCards(APIView):
         for i in range(0, len(messages_trunc) - 1, 2):
             context.append(messages_trunc[i])
             context.append(messages_trunc[i + 1])
-        mini_rag_results = utils.query("Key academic concepts", user_id, 5)
-        filtered_rag = [doc for doc in mini_rag_results if doc.get("metadata", {}).get("topic_id") == topic_id]
-        for j, doc in enumerate(filtered_rag):
+        mini_rag_results = utils.query(
+            "Key academic concepts",
+            user_id,
+            8,
+            filter_metadata={"topic_id": {"$eq": topic_id}},
+        )
+        for j, doc in enumerate(mini_rag_results):
             content = doc.get("content", "")
             context.append({"role": "system", "content": f"[RAG #{j+1}] {content}"})
 
@@ -227,9 +239,13 @@ class makeQuizCards(APIView):
         for i in range(0, len(messages_trunc) - 1, 2):
             context.append(messages_trunc[i])
             context.append(messages_trunc[i + 1])
-        mini_rag_results = utils.query("Key academic concepts", user_id, 5)
-        filtered_rag = [doc for doc in mini_rag_results if doc.get("metadata", {}).get("topic_id") == topic_id]
-        for j, doc in enumerate(filtered_rag):
+        mini_rag_results = utils.query(
+            "Key academic concepts",
+            user_id,
+            8,
+            filter_metadata={"topic_id": {"$eq": topic_id}},
+        )
+        for j, doc in enumerate(mini_rag_results):
             content = doc.get("content", "")
             context.append({"role": "system", "content": f"[RAG #{j+1}] {content}"})
 
@@ -266,11 +282,11 @@ class miniRag(APIView):
                             text=pdf_text,
                             namespace=userId,
                             metadata={
-                                "text": pdf_text[:500],
                                 "filename": pdf_file.name,
                                 "url": pdf_file.name,
                                 "topic_id": topicId,
-                                "user_id": userId                            }
+                                "user_id": userId
+                            }
                         )
                     except Exception as e:
                         return Response({"error": f'Unable to Upsert uploaded PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -287,7 +303,6 @@ class miniRag(APIView):
                             text=video_text,
                             namespace=userId,
                             metadata={
-                                "text": video_text,
                                 "url": source[i],
                                 "topic_id": topicId,
                                 "user_id": userId
@@ -337,13 +352,29 @@ class grapher(APIView):
         #     16: "Divide and Conquer",17: "Trie",18: "Segment Trees",19: "AVL Trees",20: "Red-Black Trees",21: "B-Trees",
         #     22: "NP-Completeness",23: "Sliding Window Technique",24: "Two Pointers Technique"
         #     }
-        client = utils.initialize_openai_client()
         message = f"topics = {str(topics)}"
+        schema = {
+            "type": "object",
+            "properties": {
+                str(k): {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "reason": {"type": "string"}
+                        },
+                        "required": ["target", "reason"],
+                        "additionalProperties": False
+                    }
+                } for k in topics.keys()
+            },
+            "required": list(map(str, topics.keys())),
+            "additionalProperties": False
+        }
         try:
-            response = client.responses.create(
-                model="gpt-4o",
-                temperature=0.0,
-                input=[
+            response = utils.generate_json(
+                [
                     {
                         "role": "system",
                         "content": (
@@ -355,36 +386,12 @@ class grapher(APIView):
                     },
                     {"role": "user", "content": message}
                 ],
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "labeled_notes_graph",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                str(k): {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "target": {"type": "string"},
-                                            "reason": {"type": "string"}
-                                        },
-                                        "required": ["target", "reason"],
-                                        "additionalProperties": False
-                                    }
-                                } for k in topics.keys()
-                            },
-                            "required": list(map(str, topics.keys())),
-                            "additionalProperties": False
-                        },
-                        "strict": True
-                    }
-                }
+                schema=schema,
+                temperature=0.0,
             )
         except Exception as e:
             return Response({"error": f'Failed to get response,\nError {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(json.loads(response.output_text), status=status.HTTP_200_OK)
+        return Response(response, status=status.HTTP_200_OK)
 
 class addNode(APIView):
     def post(self, request):
@@ -401,8 +408,7 @@ class addNode(APIView):
         if node_id is None or label is None:
             return Response({"error": "Invalid newNode format"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Format prompt for GPT
-        client = utils.initialize_openai_client()
+        # Format prompt for Gemini
         prompt = (
             f"You are expanding a topic graph. A new topic '{label}' (ID: {node_id}) has been added.\n"
             f"Here are the existing topics:\n"
@@ -410,46 +416,34 @@ class addNode(APIView):
             f"{json.dumps(old_graph, indent=4)}\nold graph for reference\n"
             f"Based on their meanings, return a list of nodes this new topic is connected to, along with a short explanation `reason` (1-5 words) for the connection."
         )
-
-        try:
-            response = client.responses.create(
-                model="gpt-4o",
-                temperature=0.0,
-                input=prompt,
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "labeled_notes_graph",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                str(node_id): {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "target": {"type": "string"},
-                                            "reason": {"type": "string"}
-                                        },
-                                        "required": ["target", "reason"],
-                                        "additionalProperties": False
-                                    }
-                                }
-                            },
-                            "required": [str(node_id)],
-                            "additionalProperties": False
+        schema = {
+            "type": "object",
+            "properties": {
+                str(node_id): {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "reason": {"type": "string"}
                         },
-                        "strict": True
+                        "required": ["target", "reason"],
+                        "additionalProperties": False
                     }
                 }
+            },
+            "required": [str(node_id)],
+            "additionalProperties": False
+        }
+
+        try:
+            edges = utils.generate_json(
+                prompt,
+                schema=schema,
+                temperature=0.0,
             )
         except Exception as e:
             return Response({"error": f"Failed to get response,\nError: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        try:
-            edges = json.loads(response.output_text)
-        except Exception as e:
-            return Response({"error": f"Error parsing GPT response: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         node_id_str = str(node_id)
         if node_id_str not in old_graph:

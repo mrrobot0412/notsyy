@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { assets } from '../../assets/assets';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import axios from '../../utils/axios';
+import { ASSET_BASE_URL } from '../../utils/axios';
 
 const NotebookCard = ({ notebook, onDelete }) => {
   const [imageError, setImageError] = useState(false);
@@ -15,12 +15,8 @@ const NotebookCard = ({ notebook, onDelete }) => {
 
   const getImageUrl = () => {
     if (notebook.path) {
-      const imageUrl = `http://localhost:3000${notebook.path}`;
-      console.log('Image URL:', imageUrl);
-      console.log('Notebook path:', notebook.path);
-      return imageUrl;
+      return `${ASSET_BASE_URL}${notebook.path}`;
     }
-    console.log('Using default image');
     return assets.defaultNotebook;
   };
 
@@ -54,7 +50,6 @@ const NotebookCard = ({ notebook, onDelete }) => {
           alt={notebook.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
-            console.error('Image load error:', e);
             setImageError(true);
           }}
           loading="lazy"

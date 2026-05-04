@@ -4,6 +4,7 @@ const chatController=require('../controllers/chat');
 // const upload=require('../config/multer');
 
 router.post('/',chatController.chat);
+router.get('/:resourceId',chatController.getChat);
 // router.get('/',folderController.getAllFolders);
 // router.get('/:id',chatController.getChat);
 // router.delete('/:id',folderController.deleteFolder);

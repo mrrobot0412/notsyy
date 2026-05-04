@@ -16,7 +16,7 @@ export const sendChatMessage = async (chatData) => {
 
 export const getChatHistory = async (resourceId) => {
   try {
-    const response = await axios.get(`/chat/history/${resourceId}`);
+    const response = await axios.get(`/chat/${resourceId}`);
     return response.data;
   } catch (error) {
     console.error('Chat history error:', error);

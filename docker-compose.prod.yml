@@ -1,0 +1,66 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  ai:
+    build:
+      context: ./notsy
+    restart: unless-stopped
+    env_file:
+      - ./notsy/.env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,ai}
+    depends_on:
+      - redis
+    expose:
+      - "8000"
+    command: >
+      sh -c "python manage.py migrate &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 300"
+
+  backend:
+    build:
+      context: ./Backend
+    restart: unless-stopped
+    env_file:
+      - ./Backend/.env
+    environment:
+      PORT: 3001
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/notsy}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai:8000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      NODE_ENV: production
+    depends_on:
+      - mongo
+      - ai
+    expose:
+      - "3001"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/notsy}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+
+volumes:
+  mongo_data:
+  redis_data:
+  backend_uploads:

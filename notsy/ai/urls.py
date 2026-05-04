@@ -3,6 +3,7 @@ from .views import *
 
 urlpatterns = [
     path('', helloWorldView.as_view(), name='hello'),
+    path('health/', healthView.as_view(), name='health'),
     path('respond/', augmentedRespond.as_view(), name='respond'),
     path('upload/', miniRag.as_view(), name='miniRag'),
     path('querry/', query.as_view(), name='querry'),

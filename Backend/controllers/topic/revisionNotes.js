@@ -3,6 +3,8 @@ const { StatusCodes } = require('http-status-codes');
 const { NotFoundError, CustomAPIError } = require('../../errors/index');
 const axios = require('axios');
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+
 const getRevisionNotes = async (req, res) => {
     try {
         const topicId = req.query.topicId; // Change from req.body to req.query
@@ -61,7 +63,7 @@ const createRevisionNotes = async (req, res) => {
         }
 
         // Call Python API
-        const apiResponse = await axios.post('http://127.0.0.1:8000/notes/', 
+        const apiResponse = await axios.post(`${AI_SERVICE_URL}/notes/`, 
             { topicId, userId, messages, summary },
             { timeout: 600000 }
         );

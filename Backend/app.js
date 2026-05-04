@@ -6,9 +6,18 @@ require('dotenv').config();
 const cors = require('cors');
 const path = require('path');
 
-// CORS configuration
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const corsOptions = {
-  origin: 'http://localhost:5173', // Your frontend URL
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -20,6 +29,10 @@ app.use(cors(corsOptions));
 // Static files middleware
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 // Routes
 app.use('/notsy/auth', require('./routes/auth'));
