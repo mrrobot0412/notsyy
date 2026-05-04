@@ -164,6 +164,37 @@ npm run dev
 
 Frontend should then be available at `http://localhost:5173`.
 
+## Docker Setup
+
+You can also run the full stack with Docker Compose.
+
+### Prerequisites
+
+- Docker
+- Docker Compose
+- `Backend/.env` copied from `Backend/.env.example`
+- `notsy/.env` copied from `notsy/.env.example`
+
+### Start everything
+
+```bash
+docker compose up --build
+```
+
+### Services
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
+- Django AI service: `http://localhost:8000`
+- MongoDB: `mongodb://localhost:27017`
+- Redis: `redis://localhost:6379`
+
+### Notes
+
+- Inside Docker, backend talks to Django using `http://ai:8000`
+- Inside Docker, Django talks to Redis using `redis://redis:6379/1`
+- Uploaded files are persisted in a Docker volume mounted at backend `/app/uploads`
+
 ## Current Startup Risks
 
 - The Django service will fail on import unless the missing CSV files are restored or the code is changed to handle their absence.

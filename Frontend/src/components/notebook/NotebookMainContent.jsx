@@ -4,6 +4,7 @@ import { assets } from "../../assets/assets";
 import { TrashIcon } from "@heroicons/react/24/outline";
 import { toast } from "react-hot-toast";
 import GraphViewer from "../graph/GraphViewer";
+import { ASSET_BASE_URL } from "../../utils/axios";
 
 const NotebookMainContent = ({
   notebook,
@@ -110,7 +111,7 @@ const NotebookMainContent = ({
                   >
                     <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5">
                       <img
-                        src={topic.path || assets.defaultTopic}
+                        src={topic.path ? `${ASSET_BASE_URL}${topic.path}` : assets.defaultTopic}
                         alt={topic.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {

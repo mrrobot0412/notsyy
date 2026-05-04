@@ -3,6 +3,8 @@ const { StatusCodes } = require('http-status-codes');
 const { NotFoundError, CustomAPIError } = require('../../errors/index');
 const axios = require('axios');
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+
 const getFlashcards = async (req, res) => {
     try {
         const topicId = req.query.topicId; // Get from query instead of body
@@ -64,7 +66,7 @@ const createFlashcards = async (req, res) => {
         }
 
         // Call the Python API to generate flashcards
-        const apiResponse = await axios.post('http://127.0.0.1:8000/cards/', 
+        const apiResponse = await axios.post(`${AI_SERVICE_URL}/cards/`, 
             { topicId, userId, messages, summary },
             { timeout: 600000 }
         );

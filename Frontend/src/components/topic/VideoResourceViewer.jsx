@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
-import { sendChatMessage } from "../../services/chatService";
+import { getChatHistory, sendChatMessage } from "../../services/chatService";
 import { getFlashcards, createFlashcards } from "../../services/flashcardService";
 import { BsChatDots, BsCardText, BsPencilSquare, BsPlayBtn, BsChevronUp, BsChevronDown } from "react-icons/bs";
 import { useAuth } from "../../context/AuthContext";
 import { assets } from "../../assets/assets";
 import { CHAT_MODES } from "../../constants/chatModes"; // Add this import
-import axios from "../../utils/axios"; // Add this if missing
 import FlashcardViewer from '../resource/FlashcardViewer';
 import NotesViewer from '../resource/NotesViewer';
 import { getRevisionNotes } from '../../services/notesService';
@@ -29,6 +28,10 @@ const VideoResourceViewer = ({ resource }) => {
   const [pipVideo, setPipVideo] = useState(null);
   const [showWelcome, setShowWelcome] = useState(true); // Add this line
   const [isTyping, setIsTyping] = useState(false);  // Add this if not already present
+  const [rootChat, setRootChat] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [activeChatType, setActiveChatType] = useState("main");
+  const [activeBranchId, setActiveBranchId] = useState(null);
   const { user } = useAuth();
 
   const videos = Array.isArray(resource?.source)
@@ -50,19 +53,10 @@ const VideoResourceViewer = ({ resource }) => {
     }
   };
 
-  // Only check for video ID if it's a video resource
   const currentVideoId = resource.type === "video" 
     ? getVideoIdFromUrl(videos[selectedVideoIndex])
     : null;
-
-  // Update validation check
-  if (resource.type === "video" && !currentVideoId) {
-    return (
-      <div className="flex justify-center items-center h-full">
-        <p>Invalid video source</p>
-      </div>
-    );
-  }
+  const hasInvalidVideoSource = resource.type === "video" && !currentVideoId;
 
   useEffect(() => {
     const loadChatHistory = async () => {
@@ -70,10 +64,15 @@ const VideoResourceViewer = ({ resource }) => {
 
       try {
         setLoading(true);
-        const response = await axios.get(`/chat/${resource._id}`);
+        const response = await getChatHistory(resource._id);
 
-        if (response.data?.chat?.messages) {
-          setMessages(response.data.chat.messages);
+        if (response?.chat?.messages) {
+          setRootChat(response.chat);
+          setBranches(response.branches || []);
+          setActiveChatType("main");
+          setActiveBranchId(null);
+          setMessages(response.chat.messages);
+          setShowWelcome(response.chat.messages.length === 0);
         }
       } catch (error) {
         console.error("Failed to load chat history:", error);
@@ -88,6 +87,37 @@ const VideoResourceViewer = ({ resource }) => {
 
     loadChatHistory();
   }, [resource?._id]);
+
+  const getBranchMessages = (branch) => [
+    ...(rootChat?.messages || []),
+    ...(branch?.messages || []),
+  ];
+
+  const selectMainChat = () => {
+    setActiveChatType("main");
+    setActiveBranchId(null);
+    setMessages(rootChat?.messages || []);
+    setShowWelcome((rootChat?.messages || []).length === 0);
+  };
+
+  const selectBranch = (branch) => {
+    setActiveChatType("branch");
+    setActiveBranchId(branch._id);
+    setMessages(getBranchMessages(branch));
+    setShowWelcome(false);
+  };
+
+  const startNewBranch = () => {
+    if (!rootChat?._id || (rootChat.messages || []).length === 0) {
+      toast.error("Start the main chat before creating a branch");
+      return;
+    }
+
+    setActiveChatType("new-branch");
+    setActiveBranchId(null);
+    setMessages(rootChat.messages || []);
+    setShowWelcome(false);
+  };
 
   const handleSendMessage = async () => {
     if (!message.trim()) {
@@ -104,8 +134,16 @@ const VideoResourceViewer = ({ resource }) => {
         query: message.trim(),
         resourceId: resource._id,
         topicId: resource.topicId,
-        mode: selectedMode.id,
+        modeId: selectedMode.modeId,
       };
+
+      if (activeChatType === "main" && rootChat?._id) {
+        chatData.chatId = rootChat._id;
+      } else if (activeChatType === "branch" && activeBranchId) {
+        chatData.chatId = activeBranchId;
+      } else if (activeChatType === "new-branch" && rootChat?._id) {
+        chatData.parentId = rootChat._id;
+      }
 
       console.log("Sending chat data:", chatData);
 
@@ -116,10 +154,26 @@ const VideoResourceViewer = ({ resource }) => {
       console.log("Chat response:", response);
 
       if (response?.chat?.messages) {
-        const newMessages = response.chat.messages;
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage.role === 'assistant') {
-          setMessages(prev => [...prev, lastMessage]);
+        const updatedChat = response.chat;
+
+        if (updatedChat.parentChatId) {
+          setBranches((prev) => {
+            const exists = prev.some((branch) => branch._id === updatedChat._id);
+            return exists
+              ? prev.map((branch) => branch._id === updatedChat._id ? updatedChat : branch)
+              : [...prev, updatedChat];
+          });
+          setActiveChatType("branch");
+          setActiveBranchId(updatedChat._id);
+          setMessages([
+            ...(rootChat?.messages || []),
+            ...updatedChat.messages,
+          ]);
+        } else {
+          setRootChat(updatedChat);
+          setActiveChatType("main");
+          setActiveBranchId(null);
+          setMessages(updatedChat.messages);
         }
       } else {
         throw new Error("Invalid response format");
@@ -178,6 +232,8 @@ const VideoResourceViewer = ({ resource }) => {
   ];
 
   const renderChatInterface = () => {
+    const activeBranch = branches.find((branch) => branch._id === activeBranchId);
+
     return (
       <div className="h-[90%] rounded-xl flex flex-col">
         {/* Welcome Section - Only show name greeting */}
@@ -197,6 +253,54 @@ const VideoResourceViewer = ({ resource }) => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="flex-none px-4 mb-4">
+          <div className="max-w-3xl mx-auto flex flex-wrap items-center gap-2">
+            <button
+              onClick={selectMainChat}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeChatType === "main"
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+              }`}
+            >
+              Main chat
+            </button>
+            {branches.map((branch, index) => (
+              <button
+                key={branch._id}
+                onClick={() => selectBranch(branch)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  activeChatType === "branch" && activeBranchId === branch._id
+                    ? "bg-primary text-white"
+                    : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                }`}
+              >
+                Branch {index + 1}
+              </button>
+            ))}
+            <button
+              onClick={startNewBranch}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeChatType === "new-branch"
+                  ? "bg-primary text-white"
+                  : "bg-primary/10 hover:bg-primary/20 text-primary"
+              }`}
+            >
+              New branch
+            </button>
+            {activeChatType === "new-branch" && (
+              <span className="text-xs text-gray-500">
+                Next message starts a separate branch from main chat.
+              </span>
+            )}
+            {activeBranch && (
+              <span className="text-xs text-gray-500">
+                Branch context includes main chat messages.
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Resource Quick Access - Always visible */}
         <div className="flex-none px-4 mb-6">
@@ -381,6 +485,14 @@ const VideoResourceViewer = ({ resource }) => {
   };
 
   const renderContent = () => {
+    if (hasInvalidVideoSource) {
+      return (
+        <div className="flex justify-center items-center h-full">
+          <p>Invalid video source</p>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'flashcards':
         return (

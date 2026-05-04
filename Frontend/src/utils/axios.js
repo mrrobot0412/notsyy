@@ -1,10 +1,12 @@
 import axios from 'axios';
 
-const baseURL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/notsy';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || '/notsy';
+
+export const ASSET_BASE_URL = API_BASE_URL.replace(/\/notsy\/?$/, '');
 
 const instance = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

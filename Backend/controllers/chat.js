@@ -4,6 +4,7 @@ const { BadRequestError, NotFoundError, CustomAPIError } = require('../errors');
 const Chat = require('../models/topic/chat'); // Import the Chat model
 const topicModels = require('../models/topic/topicIndex');
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 
 
 // const chat = async (req, res) => {
@@ -90,7 +91,7 @@ const topicModels = require('../models/topic/topicIndex');
 const chat = async (req, res) => {
     try {
         // console.log('Chat Request Body:', req.body);
-        const { query, topicId, resourceId, chatId, parentId } = req.body;
+        const { query, topicId, resourceId, chatId, parentId, modeId, mode } = req.body;
         const userId = req.user.userId;
 
         if (!query || !topicId || !resourceId) {
@@ -101,7 +102,12 @@ const chat = async (req, res) => {
 
         if (parentId && !chatId) {
             // Create a new branch from parentId
-            const parentChat = await Chat.findById(parentId);
+            const parentChat = await Chat.findOne({
+                _id: parentId,
+                userId,
+                topicId,
+                resourceId
+            });
             if (!parentChat) throw new NotFoundError('Parent chat not found');
 
             // Optionally: Prevent branching from a branch (enforce only one level)
@@ -115,6 +121,7 @@ const chat = async (req, res) => {
                 resourceId,
                 userId,
                 parentChatId: parentId,
+                modeId: modeId || mode,
                 messages: [],
                 summary: []
             });
@@ -124,12 +131,22 @@ const chat = async (req, res) => {
 
         } else if (chatId) {
             // Continue an existing chat (parent or child)
-            chatDoc = await Chat.findById(chatId);
+            chatDoc = await Chat.findOne({
+                _id: chatId,
+                userId,
+                topicId,
+                resourceId
+            });
             if (!chatDoc) throw new NotFoundError('Chat not found');
 
             // If this is a branch, include parent history for context
             if (chatDoc.parentChatId) {
-                const parentChat = await Chat.findById(chatDoc.parentChatId);
+                const parentChat = await Chat.findOne({
+                    _id: chatDoc.parentChatId,
+                    userId,
+                    topicId,
+                    resourceId
+                });
                 if (!parentChat) throw new NotFoundError('Parent chat not found');
                 chatHistory = [...parentChat.messages, ...chatDoc.messages];
                 summary = chatDoc.summary || [];
@@ -140,27 +157,40 @@ const chat = async (req, res) => {
                 referenceChats = [chatDoc._id];
             }
         } else {
-            // Create a new root chat
-            chatDoc = await Chat.create({
+            // Continue the latest root chat by default. The current frontend does
+            // not send chatId, so creating a new chat here would break continuity.
+            chatDoc = await Chat.findOne({
                 topicId,
                 resourceId,
                 userId,
-                messages: [],
-                summary: []
-            });
+                parentChatId: null
+            }).sort({ updatedAt: -1 });
+
+            if (!chatDoc) {
+                chatDoc = await Chat.create({
+                    topicId,
+                    resourceId,
+                    userId,
+                    parentChatId: null,
+                    modeId: modeId || mode,
+                    messages: [],
+                    summary: []
+                });
+            }
             chatHistory = chatDoc.messages;
-            summary = [];
+            summary = chatDoc.summary || [];
             referenceChats = [chatDoc._id];
         }
         // console.log('Chat History:', chatHistory);
         // Call Python API with the appropriate context
-        const apiResponse = await axios.post('http://127.0.0.1:8000/respond/', {
+        const apiResponse = await axios.post(`${AI_SERVICE_URL}/respond/`, {
             user_query: query,
             messages: chatHistory,
             topicId,
             summary,
             resourceId,
-            userId
+            userId,
+            modeId: modeId || mode
         }, { timeout: 60000 });
     console.log('Python API Response:', apiResponse.data);
         const assistantResponse = apiResponse.data?.message;
@@ -172,25 +202,70 @@ const chat = async (req, res) => {
         chatDoc.messages.push({ role: 'user', content: query.trim() });
         chatDoc.messages.push({ role: 'assistant', content: assistantResponse.trim() });
         chatDoc.summary = apiResponse.data.summary || chatDoc.summary;
+        chatDoc.modeId = modeId || mode || chatDoc.modeId;
         await chatDoc.save();
 
         return res.status(StatusCodes.OK).json({
             message: 'Chat processed successfully',
             chat: chatDoc,
-            referenceChats // For frontend to know context lineage
+            referenceChats, // For frontend to know context lineage
+            metadata: apiResponse.data?.metadata || {}
         });
 
     } catch (error) {
-        // console.error('Chat Error:', error);
+        const upstreamError =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message;
+
         return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             message: 'Chat processing failed',
-            error: error.message,
+            error: upstreamError,
             ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+        });
+    }
+};
+
+const getChat = async (req, res) => {
+    try {
+        const { resourceId } = req.params;
+        const userId = req.user.userId;
+
+        const chatDoc = await Chat.findOne({
+            resourceId,
+            userId,
+            parentChatId: null
+        }).sort({ updatedAt: -1 });
+
+        if (!chatDoc) {
+            throw new NotFoundError('Chat not found');
+        }
+
+        const branches = await Chat.find({
+            userId,
+            resourceId,
+            parentChatId: chatDoc._id
+        }).sort({ createdAt: 1 });
+
+        return res.status(StatusCodes.OK).json({
+            message: 'Chat retrieved successfully',
+            chat: chatDoc,
+            branches
+        });
+    } catch (error) {
+        if (error instanceof CustomAPIError) {
+            return res.status(error.statusCode).json({ msg: error.message });
+        }
+
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            msg: 'Error retrieving chat',
+            error: error.message
         });
     }
 };
 
 module.exports = {
     chat,
+    getChat,
     // dummyChat
 };

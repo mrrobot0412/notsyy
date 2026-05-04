@@ -1,0 +1,66 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  ai:
+    build:
+      context: ./notsy
+    restart: unless-stopped
+    env_file:
+      - ./notsy/.env
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,ai
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+
+  backend:
+    build:
+      context: ./Backend
+    restart: unless-stopped
+    env_file:
+      - ./Backend/.env
+    environment:
+      PORT: 3001
+      MONGO_URI: mongodb://mongo:27017/notsy
+      AI_SERVICE_URL: http://ai:8000
+      CORS_ORIGIN: http://localhost:5173
+    depends_on:
+      - mongo
+      - ai
+    ports:
+      - "3001:3001"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./Frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:3001/notsy
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  mongo_data:
+  redis_data:
+  backend_uploads:
